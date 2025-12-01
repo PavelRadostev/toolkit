@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+Follow KISS, SOLID, and Go idioms — keep the design simple, explicit, and stable.
