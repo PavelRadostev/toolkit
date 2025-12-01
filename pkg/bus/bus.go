@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	// ResponseStreamSuffix is appended to stream name for response delivery
-	ResponseStreamSuffix = ":responses"
 	// DefaultTimeout in seconds for requests
 	DefaultTimeout = 300
 )
