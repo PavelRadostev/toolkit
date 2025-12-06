@@ -12,3 +12,5 @@ postgres:
   sslmode: "disable"
   max_conns: 10
   min_conns: 2
+migration:
+  dir: "migrations"

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -24,6 +25,9 @@ type Config struct {
 		MaxConns int    `yaml:"max_conns"`
 		MinConns int    `yaml:"min_conns"`
 	} `yaml:"postgres"`
+	Migration struct {
+		Dir string `yaml:"dir"`
+	} `yaml:"migration"`
 }
 
 func Load() *Config {
@@ -43,4 +47,23 @@ func Load() *Config {
 	}
 
 	return &cfg
+}
+
+// DSN returns PostgreSQL connection string (DSN) from config
+func (c *Config) DSN() string {
+	pg := c.Postgres
+	sslmode := pg.SSLMode
+	if sslmode == "" {
+		sslmode = "disable"
+	}
+
+	port := pg.Port
+	if port == 0 {
+		port = 5432
+	}
+
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		pg.Host, port, pg.User, pg.Password, pg.DBName, sslmode,
+	)
 }
