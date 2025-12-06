@@ -8,6 +8,7 @@ postgres:
   user: "radostev"
   password: "123qwe"
   dbname: "radostev"
+  schema: "gis_importer"
   sslmode: "disable"
   max_conns: 10
   min_conns: 2
