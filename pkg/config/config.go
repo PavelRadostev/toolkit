@@ -9,10 +9,21 @@ import (
 
 type Config struct {
 	Redis struct {
-		Addr     string
-		Password string
-		DB       int
-	}
+		Addr     string `yaml:"addr"`
+		Password string `yaml:"password"`
+		DB       int    `yaml:"db"`
+	} `yaml:"redis"`
+	Postgres struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+		DBName   string `yaml:"dbname"`
+		Schema   string `yaml:"schema"`
+		SSLMode  string `yaml:"sslmode"`
+		MaxConns int    `yaml:"max_conns"`
+		MinConns int    `yaml:"min_conns"`
+	} `yaml:"postgres"`
 }
 
 func Load() *Config {

@@ -43,26 +43,26 @@ type RedisClient interface {
 
 // Bus is the main message bus implementation using Redis streams
 type Bus struct {
-	redis       RedisClient
-	serializer  BrokerSerialize
-	subscribers map[string]func(data []byte) (Subscriber, error)
-	mu          sync.RWMutex
-	responses   map[string]chan Response
-	responseMu  sync.RWMutex
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	redis      RedisClient
+	serializer BrokerSerialize
+	factory    *HandlerFactory
+	mu         sync.RWMutex
+	responses  map[string]chan Response
+	responseMu sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 // NewBus creates a new Bus instance with the provided Redis client
 // Uses RedisBrokerSerialize as default serializer
 func NewBus(redis RedisClient, ctx context.Context) *Bus {
 	return &Bus{
-		redis:       redis,
-		serializer:  NewRedisBrokerSerialize(),
-		subscribers: make(map[string]func(data []byte) (Subscriber, error)),
-		responses:   make(map[string]chan Response),
-		ctx:         ctx,
+		redis:      redis,
+		serializer: NewRedisBrokerSerialize(),
+		factory:    NewHandlerFactory(),
+		responses:  make(map[string]chan Response),
+		ctx:        ctx,
 	}
 }
 
@@ -71,12 +71,22 @@ func (b *Bus) SetSerializer(serializer BrokerSerialize) {
 	b.serializer = serializer
 }
 
-// Register registers a constructor of a subscriber for a specific stream
-func (b *Bus) Register(streamName string, constructor func(data []byte) (Subscriber, error)) {
+// Register registers a stream name and uses the HandlerFactory to create handlers
+func (b *Bus) Register(streamName string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.subscribers[streamName] = constructor
-	log.Printf("Registered constructor for stream: %s", streamName)
+	if !b.factory.HasHandler(streamName) {
+		log.Printf("Warning: No handler registered in factory for stream: %s", streamName)
+	}
+	log.Printf("Registered stream: %s", streamName)
+}
+
+// SetFactory sets the HandlerFactory for the Bus
+func (b *Bus) SetFactory(factory *HandlerFactory) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.factory = factory
+	log.Printf("HandlerFactory set for Bus")
 }
 
 // generateRequestID generates a unique request ID
@@ -193,25 +203,20 @@ func (b *Bus) Emit(ctx context.Context, pub Publisher) error {
 // Run starts listening to all registered streams and processing messages
 func (b *Bus) Run() {
 	b.mu.RLock()
-	if len(b.subscribers) == 0 {
-		b.mu.RUnlock()
-		log.Println("No subscribers registered, nothing to run")
+	streams := b.factory.GetStreams()
+	b.mu.RUnlock()
+
+	if len(streams) == 0 {
+		log.Println("No handlers registered in factory, nothing to run")
 		return
 	}
-
-	// Build streams list
-	streams := make([]string, 0, len(b.subscribers))
-	for streamName := range b.subscribers {
-		streams = append(streams, streamName)
-	}
-	b.mu.RUnlock()
 
 	log.Printf("Starting bus listener for %d streams", len(streams))
 
 	for _, stream := range streams {
-		go func() {
-			b.processStream(stream)
-		}()
+		go func(streamName string) {
+			b.processStream(streamName)
+		}(stream)
 	}
 }
 
@@ -219,7 +224,6 @@ func (b *Bus) Run() {
 func (b *Bus) processStream(streamName string) {
 	lastID := "$" // читать только новые сообщения
 	// lastID := "0" // читать все сообщения
-	constructor := b.subscribers[streamName]
 
 	for {
 		res, err := b.redis.XRead(b.ctx, &redis.XReadArgs{
@@ -242,8 +246,11 @@ func (b *Bus) processStream(streamName string) {
 					log.Printf("failed to deserialize TransportRequest for stream %s, message ID %s: %v", streamName, msg.ID, err)
 					continue
 				}
-				// Create subscriber using properties from TransportRequest
-				subscriber, err := constructor(transportReq.Properties)
+				// Create subscriber using factory with properties from TransportRequest
+				b.mu.RLock()
+				factory := b.factory
+				b.mu.RUnlock()
+				subscriber, err := factory.CreateHandler(streamName, transportReq.Properties)
 				if err != nil {
 					log.Printf("failed to create subscriber for stream %s: %v", streamName, err)
 					continue

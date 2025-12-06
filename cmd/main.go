@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
 	"github.com/PavelRadostev/toolkit/pkg/bus"
 	"github.com/PavelRadostev/toolkit/pkg/config"
+	"github.com/PavelRadostev/toolkit/pkg/db"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/redis/go-redis/v9"
 )
@@ -71,13 +73,15 @@ func (e *GGISImportTemplateEntity) Serialize() ([]byte, error) {
 
 type AllGGISImportTemplatesQueryHandler struct {
 	EnterpriseID EnterpriseId `cbor:"enterprise_id"`
+	Repository   bus.Repository
 }
 
-func NewAllGGISImportTemplatesQueryFromCBOR(data []byte) (bus.Subscriber, error) {
+func NewAllGGISImportTemplatesQueryFromCBOR(data []byte, repo bus.Repository) (bus.Subscriber, error) {
 	var handler AllGGISImportTemplatesQueryHandler
 	if err := cbor.Unmarshal(data, &handler); err != nil {
 		return nil, err
 	}
+	handler.Repository = repo
 	return &handler, nil
 }
 
@@ -102,13 +106,15 @@ func (a *AllGGISImportTemplatesQueryHandler) Handle(ctx context.Context) (any, e
 
 type IsPlanApprovedQueryHandler struct {
 	EnterpriseID EnterpriseId `cbor:"enterprise_id"`
+	Repository   bus.Repository
 }
 
-func NewIsPlanApprovedQueryFromCBOR(data []byte) (bus.Subscriber, error) {
+func NewIsPlanApprovedQueryFromCBOR(data []byte, repo bus.Repository) (bus.Subscriber, error) {
 	var handler IsPlanApprovedQueryHandler
 	if err := cbor.Unmarshal(data, &handler); err != nil {
 		return nil, err
 	}
+	handler.Repository = repo
 	return &handler, nil
 }
 
@@ -132,12 +138,32 @@ func main() {
 		DB:       cfg.Redis.DB,
 	})
 
-	bus := bus.NewBus(redisClient, ctx)
+	busInstance := bus.NewBus(redisClient, ctx)
+	factory := bus.NewHandlerFactory()
 
-	bus.Register("vist_domain.query.ggis_import.AllGGISImportTemplatesQuery", NewAllGGISImportTemplatesQueryFromCBOR)
-	bus.Register("vist_domain.query.pit.plan.IsPlanApprovedQuery", NewIsPlanApprovedQueryFromCBOR)
+	// Register handlers in factory
+	factory.RegisterHandler("vist_domain.query.ggis_import.AllGGISImportTemplatesQuery", NewAllGGISImportTemplatesQueryFromCBOR)
+	factory.RegisterHandler("vist_domain.query.pit.plan.IsPlanApprovedQuery", NewIsPlanApprovedQueryFromCBOR)
 
-	bus.Run()
+	// Register repositories in factory (example - can be nil if not needed)
+	// factory.RegisterRepository("vist_domain.query.ggis_import.AllGGISImportTemplatesQuery", someRepository)
+	// factory.RegisterRepository("vist_domain.query.pit.plan.IsPlanApprovedQuery", someRepository)
+
+	// Set factory in bus
+	busInstance.SetFactory(factory)
+
+	// Register streams in bus
+	busInstance.Register("vist_domain.query.ggis_import.AllGGISImportTemplatesQuery")
+	busInstance.Register("vist_domain.query.pit.plan.IsPlanApprovedQuery")
+
+	busInstance.Run()
+
+	pool, err := db.NewPool(ctx, cfg)
+	if err != nil {
+		log.Fatalf("Failed to create database pool: %v", err)
+	}
+
+	defer pool.Close()
 
 	time.Sleep(time.Second * 600)
 

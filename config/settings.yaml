@@ -2,3 +2,12 @@ redis:
   addr: "localhost:6379"
   password: ""
   db: 11
+postgres:
+  host: "localhost"
+  port: 5432
+  user: "radostev"
+  password: "123qwe"
+  dbname: "radostev"
+  sslmode: "disable"
+  max_conns: 10
+  min_conns: 2
