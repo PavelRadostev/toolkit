@@ -10,6 +10,7 @@ import (
 	"github.com/PavelRadostev/toolkit/pkg/bus"
 	"github.com/PavelRadostev/toolkit/pkg/config"
 	"github.com/PavelRadostev/toolkit/pkg/db"
+	"github.com/PavelRadostev/toolkit/pkg/migrator"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/redis/go-redis/v9"
 )
@@ -126,6 +127,9 @@ func (i *IsPlanApprovedQueryHandler) Handle(ctx context.Context) (any, error) {
 }
 
 func main() {
+
+	migrator.Execute()
+
 	ctx := context.Background()
 
 	fmt.Println("Hello, World!")

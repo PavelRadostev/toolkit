@@ -10,9 +10,11 @@
             "type": "go",
             "request": "launch",
             "mode": "debug",
-            // "program": "x_sand_box/sand_box.go",
-            "program": "cmd/main.go",
-            // "program": "cmd/migrate/main.go", // Накатить миграции
+            // "program": "cmd/main.go",
+            "program": "cmd/migrate/main.go", // Можно запускать с аргументами, например:
+            "args": ["up"],
+            // args: ["down"]
+            // args: ["version"]
             "envFile": "${workspaceFolder}/local.env", // Указываем путь к файлу .env
             "console": "integratedTerminal",  // Ввод будет в терминале
             // "args": ["--check-go-version=false"],
